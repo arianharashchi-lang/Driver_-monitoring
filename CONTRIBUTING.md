@@ -1,33 +1,21 @@
 # Contributing
 
-Contributions are welcome.
+Contributions to the driver-monitoring prototype are welcome.
 
 ## Development setup
 
-```powershell
-git lfs install
-git clone https://github.com/arianharashchi-lang/FacialEmotionAI.git
-cd FacialEmotionAI
-git lfs pull
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-```
+    git clone https://github.com/arianharashchi-lang/Driver_-monitoring.git
+    cd Driver_-monitoring
+    python -m venv .venv
+    . .venv/bin/activate
+    pip install -r requirements.txt
+    uvicorn webapp.app:app --reload
 
-## Before opening a pull request
 
-- Keep raw datasets, captured faces, webcam adaptation media, and local databases out of Git.
-- Do not commit secrets or credentials.
-- Run a syntax check:
+Before opening a pull request, check Python and JavaScript syntax and run the driver tests:
 
-```powershell
-python -m compileall -q .
-```
+    python -m compileall -q .
+    node --test tests/js/*.test.cjs
 
-- Update documentation when behavior or metrics change.
-- Do not describe model confidence as psychological certainty.
-- Clearly identify results that come from small or project-specific evaluation sets.
 
-## Privacy
-
-Do not contribute identifiable face media unless every depicted participant has explicitly consented to public distribution.
+Do not commit credentials, private camera recordings, or identifying screenshots without consent. Document behavior changes and describe detection results as uncertain indicators.

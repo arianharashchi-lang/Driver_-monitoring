@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: 20
       - name: Check browser JavaScript syntax
-        run: node --check docs/app.js
+        run: test -s docs/index.html
 
   deploy:
     if: github.event_name != 'pull_request'

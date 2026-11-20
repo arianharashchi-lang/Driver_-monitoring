@@ -1,52 +1,18 @@
-# Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
-
-# Virtual environments
 .venv/
 venv/
 env/
-
-# IDE / OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
-
-# Environment / credentials
 .env
 .env.*
 *.pem
 *.key
-
-# Local data and privacy-sensitive runtime artifacts
-data/
-database/
 logs/
-*.db
-*.sqlite
-*.sqlite3
-
-# Raw datasets / archives / media
-*.zip
-*.part
-*.tmp
 *.mp4
 *.avi
-
-# Local pretrained MobileNet weights used only for training fallback
-models/mobilenet_v2_weights_tf_dim_ordering_tf_kernels_1.0_160_no_top.h5
-
-# Keep only final runtime model artifacts in Git
-models/*
-!models/cnn_feature_extractor.keras
-!models/fake_discriminator.keras
-!models/lstm_attention_v1_best.keras
-!models/lstm_attention_v1_classes.json
-!models/lstm_v1_feature_mean.npy
-!models/lstm_v1_feature_std.npy
-!models/sad_neutral_adapter.keras
-!models/sad_neutral_adapter_classes.json
-!models/sad_neutral_adapter_calibration.json

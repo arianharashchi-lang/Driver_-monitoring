@@ -36,7 +36,7 @@ function renderAnalytics(){
 }
 function downloadFullReport(){
  const markup=window.DriverSessionAnalytics.reportHTML(sessionAnalyticsEvents,sessionStart,Date.now());
- downloadLocal("facialemotionai-driver-report.html",new Blob([markup],{type:"text/html;charset=utf-8"}));
+ downloadLocal("driver-monitoring-report.html",new Blob([markup],{type:"text/html;charset=utf-8"}));
 }
 
 let phoneModel=null,phoneEnabled=false,phoneBusy=false,phoneLastAt=0,phoneSeenSince=null,phoneAlertActive=false;
