@@ -83,6 +83,7 @@
   }
  }
  function draw(boxes){
+  canvas.hidden=false;
   resizeCanvas();ctx.clearRect(0,0,canvas.width,canvas.height);
   // Perspective floor zone: narrow at the horizon, wider near the camera.
   const zone=[
@@ -116,10 +117,11 @@
   $("pedestrianCount").textContent=String(boxes.length);
  }
  async function scan(){
+  if(!video.srcObject){canvas.hidden=true;setZoneAlarm(false);return;}
   if(!enabled||busy||!session||video.readyState<2||performance.now()-lastRun<500)return;
   busy=true;lastRun=performance.now();
   try{const meta=makeInput();const out=await session.run({images:meta.tensor});const detections=decode(out[session.outputNames[0]].data,meta);const boxes=updateTracks(detections);draw(boxes);status("Active — experimental");}
-  catch(e){status("Inference error");console.error("Pedestrian detector:",e);enabled=false;button.disabled=false;}
+  catch(e){canvas.hidden=true;status("Inference error");console.error("Pedestrian detector:",e);enabled=false;button.disabled=false;}
   finally{busy=false;}
  }
  async function enable(){

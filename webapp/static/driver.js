@@ -383,7 +383,8 @@ async function start(){
  try{
   if(!secureContext())throw Error("Camera API unavailable. Open the site directly using HTTPS or localhost.");
   setStatus("Requesting camera...");
-  const acquired=await navigator.mediaDevices.getUserMedia({audio:false,video:true});
+  const selected=$("cameraDevice").value;
+  const acquired=await navigator.mediaDevices.getUserMedia({audio:false,video:selected?{deviceId:{exact:selected}}:{facingMode:{ideal:"user"}}});
   if(generation!==cameraGeneration){acquired.getTracks().forEach(t=>t.stop());return;}
   stream=acquired;
   const track=stream.getVideoTracks()[0];
@@ -391,7 +392,8 @@ async function start(){
    track.addEventListener("ended",()=>{if(stream===acquired){stop();setStatus("Camera disconnected or permission revoked.");diagnostic("Camera disconnected");}});
    const settings=track.getSettings();setText("cameraDetails",[settings.width,settings.height].every(Boolean)?settings.width+" × "+settings.height:"Camera active");
   }
-  video.srcObject=stream;await video.play();
+  video.muted=true;video.playsInline=true;video.srcObject=stream;await video.play();
+  void refreshCameraDevices();
   if(generation!==cameraGeneration)return;
   setText("cameraMessage","Camera on");
   diagnostic("Camera active — loading optional models");
@@ -402,7 +404,7 @@ async function start(){
   if(generation===cameraGeneration){stop();setStatus("Could not start camera: "+cameraError(e));diagnostic("Camera error — see status below");}
  }finally{startingCamera=false;$("cameraStart").disabled=!!stream;}
 }
-function stop(){cameraGeneration++;$("modelRetry").disabled=true;if("speechSynthesis" in window)window.speechSynthesis.cancel();speechQueue.length=0;currentSpeech=null;activeSpeechPriority=0;speechToken++;clearEyeCalibration();clearInterval(timer);timer=null;clearInterval(eyeTimer);eyeTimer=null;lastFastEyeAt=null;eyeSamples=0;setText("eyeSampleState","0");resetGaze();phoneSeenSince=null;phoneAlertActive=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null;setText("cameraMessage","Camera off");setText("cameraDetails","—");$("cameraStart").disabled=false;resetDiagnostics();$("enroll").disabled=true;$("verify").disabled=true;monitoring(null);setText("monitorState","Inactive");}
+function stop(){cameraGeneration++;$("pedestrianOverlay").hidden=true;$("modelRetry").disabled=true;if("speechSynthesis" in window)window.speechSynthesis.cancel();speechQueue.length=0;currentSpeech=null;activeSpeechPriority=0;speechToken++;clearEyeCalibration();clearInterval(timer);timer=null;clearInterval(eyeTimer);eyeTimer=null;lastFastEyeAt=null;eyeSamples=0;setText("eyeSampleState","0");resetGaze();phoneSeenSince=null;phoneAlertActive=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null;setText("cameraMessage","Camera off");setText("cameraDetails","—");$("cameraStart").disabled=false;resetDiagnostics();$("enroll").disabled=true;$("verify").disabled=true;monitoring(null);setText("monitorState","Inactive");}
 async function enroll(){
  const pin=$("pin").value;
  if(!stream){setText("enrollStatus","Start camera first.");return;}
@@ -427,6 +429,18 @@ async function verify(){
  else{authFailures++;if(authFailures>=5){lockedUntil=Date.now()+30000;authFailures=0;}setText("identity","Not authorized");setStatus("Demo verification failed. After 5 failures, checks pause for 30 seconds. No vehicle hardware is controlled.");}
  }catch(e){setText("identity","Verification error");setStatus(e.message);}
 }
+async function refreshCameraDevices(){
+ try{
+  if(!navigator.mediaDevices?.enumerateDevices)return;
+  const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==="videoinput");
+  const select=$("cameraDevice"),selected=stream?.getVideoTracks()[0]?.getSettings().deviceId||select.value;
+  select.replaceChildren(new Option("Default camera",""));
+  devices.forEach((d,i)=>{if(d.deviceId)select.add(new Option(d.label||"Camera "+(i+1),d.deviceId));});
+  if(Array.from(select.options).some(o=>o.value===selected))select.value=selected;
+ }catch(e){console.warn("Camera listing unavailable",e);}
+}
+$("cameraDevice").addEventListener("change",()=>{if(stream){stop();void start();}});
+void refreshCameraDevices();
 $("modelRetry").addEventListener("click",()=>{setStatus("Retrying detection models...");void startMonitoring();});
 $("cameraStart").addEventListener("click",start);$("cameraStop").addEventListener("click",stop);
 $("enroll").addEventListener("click",enroll);$("verify").addEventListener("click",verify);
