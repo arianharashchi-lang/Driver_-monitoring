@@ -163,7 +163,7 @@ async function fastEyeCycle(){
  if(!irisReady||irisPending||!stream||video.readyState<2)return;
  irisPending=true;
  try{await irisMesh.send({image:video});}
- catch(e){irisReady=false;metrics.resetTracking();setText("eyeSampleState","Iris model error");setStatus("Fast eye tracking unavailable. Slow fallback active: "+e.message);}
+ catch(e){irisReady=false;metrics.resetTracking();setText("eyeSampleState","Iris model error");setStatus("Fast eye tracking unavailable: "+e.message);$("modelRetry").disabled=!stream;}
  finally{irisPending=false;}
 }
 function updateGaze(result){
@@ -336,31 +336,73 @@ async function cycle(){
   setStatus("Tracking error: "+e.message);
  }finally{busy=false;}
 }
+let cameraGeneration=0, modelLoadPending=false;
+function cameraError(e){
+ const messages={NotAllowedError:"Camera permission denied. Allow camera access in browser site settings.",NotFoundError:"No camera found. Connect or enable a webcam.",NotReadableError:"Camera unavailable or in use. Close other camera apps and retry.",OverconstrainedError:"Camera constraints unsupported.",SecurityError:"Camera access blocked by browser security settings."};
+ return messages[e.name]||e.message||String(e);
+}
+async function startMonitoring(){
+ if(!stream||modelLoadPending)return;
+ const generation=cameraGeneration;
+ const current=()=>generation===cameraGeneration&&!!stream;
+ modelLoadPending=true;
+ $("modelRetry").disabled=true;
+ let faceError=null,irisError=null;
+ try{
+  const faceTask=loadModels().then(()=>{
+   if(!current())return;
+   $("enroll").disabled=false;$("verify").disabled=false;
+   clearInterval(timer);timer=setInterval(cycle,300);
+  }).catch(e=>{faceError=e;});
+  const irisTask=initIris().then(()=>{
+   if(!current())return;
+   setText("gazeModelState","Iris model initialized");
+   clearInterval(eyeTimer);eyeTimer=setInterval(fastEyeCycle,100);
+  }).catch(e=>{irisError=e;if(current())setText("gazeModelState","Unavailable");});
+  await Promise.all([faceTask,irisTask]);
+  if(!current())return;
+  if(faceError||irisError){
+   const errors=[faceError&&("Face: "+faceError.message),irisError&&("Iris: "+irisError.message)].filter(Boolean);
+   setStatus("Camera remains on. Model error: "+errors.join(" | "));
+   diagnostic(modelsReady||irisReady?"Partial monitoring — see status":"Camera only — models unavailable");
+  }else{
+   setStatus("Camera and face monitoring ready.");
+   diagnostic("Camera ready — tracking starting");
+  }
+ }finally{
+  modelLoadPending=false;
+  $("modelRetry").disabled=!stream;
+  if(stream&&generation!==cameraGeneration)void startMonitoring();
+ }
+}
 async function start(){
  if(startingCamera||stream)return;
  startingCamera=true;
+ const generation=++cameraGeneration;
  $("cameraStart").disabled=true;
  try{
- if(!secureContext())throw Error("Camera API unavailable. Use HTTPS/localhost and a supported browser.");
- setStatus("Requesting camera...");
- stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:"user"}});
- const track=stream.getVideoTracks()[0];
- if(track){track.addEventListener("ended",()=>{stop();setStatus("Camera disconnected or permission revoked.");diagnostic("Camera disconnected");});
-  const settings=track.getSettings();setText("cameraDetails",[settings.width,settings.height].every(Boolean)?settings.width+" × "+settings.height:"Camera active");}
- video.srcObject=stream;await video.play();
- setText("cameraMessage","Camera on");setStatus("Loading face models... first run requires a network connection.");
- await loadModels();
- try{await initIris();setText("gazeModelState","Iris model initialized");}
- catch(irisError){setText("gazeModelState","Unavailable");setStatus("Iris tracking unavailable; basic driver monitoring still works. "+irisError.message);}
- setStatus("Face monitoring ready. Iris detection is experimental and depends on an external model.");
- $("enroll").disabled=false;$("verify").disabled=false;
- clearInterval(timer);timer=setInterval(cycle,300);
- clearInterval(eyeTimer);eyeTimer=setInterval(fastEyeCycle,100);
- diagnostic("Camera ready — tracking starting");
- }catch(e){stop();setStatus("Could not start: "+e.message);diagnostic("Camera/model error — see status below");
+  if(!secureContext())throw Error("Camera API unavailable. Open the site directly using HTTPS or localhost.");
+  setStatus("Requesting camera...");
+  const acquired=await navigator.mediaDevices.getUserMedia({audio:false,video:true});
+  if(generation!==cameraGeneration){acquired.getTracks().forEach(t=>t.stop());return;}
+  stream=acquired;
+  const track=stream.getVideoTracks()[0];
+  if(track){
+   track.addEventListener("ended",()=>{if(stream===acquired){stop();setStatus("Camera disconnected or permission revoked.");diagnostic("Camera disconnected");}});
+   const settings=track.getSettings();setText("cameraDetails",[settings.width,settings.height].every(Boolean)?settings.width+" × "+settings.height:"Camera active");
+  }
+  video.srcObject=stream;await video.play();
+  if(generation!==cameraGeneration)return;
+  setText("cameraMessage","Camera on");
+  diagnostic("Camera active — loading optional models");
+  setStatus("Camera on. Loading detection models...");
+  $("modelRetry").disabled=modelLoadPending;
+  void startMonitoring();
+ }catch(e){
+  if(generation===cameraGeneration){stop();setStatus("Could not start camera: "+cameraError(e));diagnostic("Camera error — see status below");}
  }finally{startingCamera=false;$("cameraStart").disabled=!!stream;}
 }
-function stop(){if("speechSynthesis" in window)window.speechSynthesis.cancel();speechQueue.length=0;currentSpeech=null;activeSpeechPriority=0;speechToken++;clearEyeCalibration();clearInterval(timer);timer=null;clearInterval(eyeTimer);eyeTimer=null;lastFastEyeAt=null;eyeSamples=0;setText("eyeSampleState","0");resetGaze();phoneSeenSince=null;phoneAlertActive=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null;setText("cameraMessage","Camera off");setText("cameraDetails","—");$("cameraStart").disabled=false;resetDiagnostics();$("enroll").disabled=true;$("verify").disabled=true;monitoring(null);setText("monitorState","Inactive");}
+function stop(){cameraGeneration++;$("modelRetry").disabled=true;if("speechSynthesis" in window)window.speechSynthesis.cancel();speechQueue.length=0;currentSpeech=null;activeSpeechPriority=0;speechToken++;clearEyeCalibration();clearInterval(timer);timer=null;clearInterval(eyeTimer);eyeTimer=null;lastFastEyeAt=null;eyeSamples=0;setText("eyeSampleState","0");resetGaze();phoneSeenSince=null;phoneAlertActive=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null;setText("cameraMessage","Camera off");setText("cameraDetails","—");$("cameraStart").disabled=false;resetDiagnostics();$("enroll").disabled=true;$("verify").disabled=true;monitoring(null);setText("monitorState","Inactive");}
 async function enroll(){
  const pin=$("pin").value;
  if(!stream){setText("enrollStatus","Start camera first.");return;}
@@ -385,6 +427,7 @@ async function verify(){
  else{authFailures++;if(authFailures>=5){lockedUntil=Date.now()+30000;authFailures=0;}setText("identity","Not authorized");setStatus("Demo verification failed. After 5 failures, checks pause for 30 seconds. No vehicle hardware is controlled.");}
  }catch(e){setText("identity","Verification error");setStatus(e.message);}
 }
+$("modelRetry").addEventListener("click",()=>{setStatus("Retrying detection models...");void startMonitoring();});
 $("cameraStart").addEventListener("click",start);$("cameraStop").addEventListener("click",stop);
 $("enroll").addEventListener("click",enroll);$("verify").addEventListener("click",verify);
 $("resetIgnition").addEventListener("click",()=>{virtualIgnition=false;setText("ignition","LOCKED");setText("identity","Not checked");});
